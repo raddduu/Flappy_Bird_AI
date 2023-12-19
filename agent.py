@@ -1,21 +1,30 @@
 import pygame
 import numpy as np
-from flappy_bird_game_AI import FlappyBirdGameAI, Action, Point
+from flappy_bird_game_AI import FlappyBirdGameAI, Action, Point, BLOCK_SIZE
 import matplotlib.pyplot as plt
 import pickle
 
 class Agent:
-    BIRD_HEIGHT_DISCRETIZATION_FACTOR = 20
-    NEXT_TUBE_HEIGHT_DISCRETIZATION_FACTOR = 20
     NEXT_TUBE_DISTANCE_DISCRETIZATION_FACTOR = 20
 
-    num_states = BIRD_HEIGHT_DISCRETIZATION_FACTOR * NEXT_TUBE_HEIGHT_DISCRETIZATION_FACTOR * NEXT_TUBE_DISTANCE_DISCRETIZATION_FACTOR
+    num_states = 3 * 4 * NEXT_TUBE_DISTANCE_DISCRETIZATION_FACTOR
     num_actions = 3
 
     def __init__(self, alpha=0.1, gamma=0.995):
         self.alpha = alpha
         self.gamma = gamma
+        self.states_dictionary = self.get_dictionary_for_tuple_to_index_conversion()
         self.Q = np.zeros((self.num_states, self.num_actions))
+
+    def get_dictionary_for_tuple_to_index_conversion(self):
+        dictionary = {}
+        index = 0
+        for i in range(3):
+            for j in range(4):
+                for k in range(20):
+                    dictionary[(i, j, k)] = index
+                    index += 1
+        return dictionary
 
     def save_policy(self, file_name):
         with open(file_name, 'wb') as f:
@@ -26,11 +35,17 @@ class Agent:
             self.Q = pickle.load(f)
 
     def get_state(self, game):
-        bird_height_bins = np.linspace(0, game.h, self.BIRD_HEIGHT_DISCRETIZATION_FACTOR + 1)
-        tube_height_bins = np.linspace(0, game.h, self.NEXT_TUBE_HEIGHT_DISCRETIZATION_FACTOR + 1)
-        distance_bins = np.linspace(0, game.w, self.NEXT_TUBE_DISTANCE_DISCRETIZATION_FACTOR + 1)
+        distance_bins = np.linspace(0, game.w, self.NEXT_TUBE_DISTANCE_DISCRETIZATION_FACTOR)
 
-        bird_height = np.digitize(game.bird.y, bird_height_bins)
+        bird_height = game.bird.y
+
+        # non-collision, upper-collision, lower-collision
+        bird_collision_case = 0
+
+        if bird_height < 2 * BLOCK_SIZE:
+            bird_collision_case = 1
+        elif bird_height > game.h - 2 * BLOCK_SIZE:
+            bird_collision_case = 2
 
         next_tube_x, next_tube_y = game.w, game.h // 2
 
@@ -38,10 +53,29 @@ class Agent:
             next_tube_x = game.tubes[0].x
             next_tube_y = game.tubes[0].y
 
-        next_tube_height = np.digitize(next_tube_y, tube_height_bins)
-        next_tube_distance = np.digitize(next_tube_x - game.bird.x, distance_bins)
+        bird_tube_height_difference = bird_height - next_tube_y
+        bird_tube_height_case = 0
 
-        return (bird_height, next_tube_height, next_tube_distance)
+        # above or upper
+        if bird_tube_height_difference >= 0:
+            # upper
+            if np.abs(bird_tube_height_difference) <= 5 * BLOCK_SIZE:
+                bird_tube_height_case = 0
+            # above
+            else:
+                bird_tube_height_case = 1
+        # below or lower
+        else:
+            # lower
+            if np.abs(bird_tube_height_difference) <= 5 * BLOCK_SIZE:
+                bird_tube_height_case = 2
+            # below
+            else:
+                bird_tube_height_case = 3
+
+        next_tube_distance_class = np.digitize(next_tube_x - game.bird.x, distance_bins)
+
+        return self.states_dictionary[(bird_collision_case, bird_tube_height_case, next_tube_distance_class)], (bird_collision_case, bird_tube_height_case, next_tube_distance_class)
     
     def policy(self, state):
         return np.argmax(self.Q[state, :])
@@ -76,7 +110,8 @@ class Agent:
 
         for episode in range(episodes):
             game.reset()
-            state = self.get_state(game)
+            state, tuple_state = self.get_state(game)
+            print(tuple_state, state)
 
             game_over = False
             score = 0
@@ -85,17 +120,19 @@ class Agent:
 
                 reward, score, game_over = game.play(action)
 
-                if score > 0:
-                    print("Episode: " + str(episode) + " Score: " + str(score))
+                print(self.Q[state, action], tuple_state, state, reward)
 
                 if score > 100:
                     game_over = True
 
-                next_state = self.get_state(game)
+                next_state, tuple_state = self.get_state(game)
 
                 self.update(state, action, reward, next_state)
 
                 state = next_state
+
+            if score > 0:
+                    print("Episode: " + str(episode) + " Score: " + str(score))
 
             scores.append(score)
 
@@ -119,7 +156,7 @@ if __name__ == "__main__":
 
     agent = Agent()
 
-    agent.train(game, 10000, verbose=True)
+    agent.train(game, 1000, verbose=True)
 
     agent.save_policy('policy.pkl')
 
