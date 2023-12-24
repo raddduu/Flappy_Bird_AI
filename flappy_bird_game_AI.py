@@ -26,16 +26,16 @@ BROWN = (128, 64, 0)
 
 BLOCK_SIZE = 10
 DETAILED_BLOCK_SIZE = 5
-SPEED = 10
+SPEED = 20
 
 class FlappyBirdGameAI:
 
     def __init__(self, w=1280, h=800):
         self.w = w
         self.h = h
-        self.display = pygame.display.set_mode((self.w, self.h))
+        #self.display = pygame.display.set_mode((self.w, self.h))
         pygame.display.set_caption('Flappy Bird')
-        self.clock = pygame.time.Clock()
+        #self.clock = pygame.time.Clock()
 
         self.reset()
         
@@ -221,7 +221,7 @@ class FlappyBirdGameAI:
         self.move_tubes()
         reward = 10 * self.remove_passed_tubes()
 
-        self.display.fill(BLACK)
+        #self.display.fill(BLACK)
 
         mode = "simple"
 
@@ -230,7 +230,7 @@ class FlappyBirdGameAI:
         elif self.fall_timer > 0:
             mode = "down"
 
-        self._update_ui(mode=mode)
-        self.clock.tick(SPEED * 2)
-        pygame.display.update()
+        #self._update_ui(mode=mode)
+        #self.clock.tick(SPEED * 2)
+        #pygame.display.update()
         return reward, self.score, game_over
